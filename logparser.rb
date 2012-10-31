@@ -6,6 +6,7 @@ require 'pry'
 require 'json'
 require 'active_support/inflector'
 require 'memoist'
+require 'time'
 
 class Offering
   HOST = "http://rites-investigations.concord.org"
@@ -59,24 +60,41 @@ class Launch
   attr_accessor :offering
 
   def initialize(hash)
-    self.timestamp = hash[:timestamp]
+    # self.timestamp = hash[:timestamp]
+    self.timestamp = Time.parse(hash[:timestamp]).strftime('%Y-%m-%dT%H:%M:%S.%3N')
     self.url       = hash[:url]
     self.ip        = hash[:ip]
     self.offering  = Offering.find(hash[:offering_id])
   end
 
-  def to_hash
-    {self.timestamp =>
-      {
-        :url           => self.url,
-        :ip            => self.ip,
-        :offering_name => self.offering.name,
-        :offering_id   => self.offering.id,
-        :offering_type => self.offering.type,
-        :class_id      => self.offering.class_id
-      }
+  def hash_id
+    "#{self.timestamp}-#{self.url}-#{self.ip}"
+  end
+
+  def as_hash
+    {
+      'timestamp'     => self.timestamp,
+      'hash_id'       => self.hash_id,
+      'url'           => self.url,
+      'ip'            => self.ip,
+      'offering_name' => self.offering.name,
+      'offering_id'   => self.offering.id,
+      'offering_type' => self.offering.type,
+      'class_id'      => self.offering.class_id
     }
   end
+
+  def as_json
+    self.as_hash.to_json
+  end
+
+  def as_csv
+    pairs = self.as_hash.map do |key,value|
+      "#{key}=\"#{value}\""
+    end
+    pairs.join(", ")
+  end
+
 end
 
 
@@ -96,9 +114,12 @@ file_names = ARGV
 file_names.each do |filename|
   launches = parse_log(filename)
   puts "found #{launches.size} launches in #{filename}"
-  outfilename = "#{filename}.json"
+  outfilename = "#{filename}.csv"
   File.open(outfilename,"w") do |file|
-    file.puts launches.map { |l| l.to_hash }.to_json
+    launches.each do |launch|
+      file.puts launch.as_csv
+    end
+    # file.puts launches.each { |l| l.as_json }
   end
 end
 
